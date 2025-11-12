@@ -27,6 +27,7 @@ async function run() {
     const db = client.db("Future_Box_DB");
     const courseCollection = db.collection("Courses");
     const enrollCollection = db.collection("enrolledInfo");
+    const InstructorsCollection = db.collection("Instructors");
     // const addCourseCollection = db.collection("addCourseInfo");
 
     app.get("/courses", async (req, res) => {
@@ -98,6 +99,36 @@ async function run() {
       query = { email };
       const addedCourseData = courseCollection.find(query);
       const result = await addedCourseData.toArray();
+      res.send(result);
+    });
+
+    //Update course data get
+    app.get("/updateData/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const result = await courseCollection.findOne(query);
+
+      res.send(result);
+    });
+
+    app.patch("/updateData/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const updatedData = req.body;
+      const updatedDoc = {
+        $set: updatedData,
+      };
+      const data = await courseCollection.updateOne(query, updatedDoc);
+
+      res.send(data);
+    });
+    //get instructor data
+
+    app.get("/InstructorData", async (req, res) => {
+      const Data = InstructorsCollection.find();
+      const result = await Data.toArray();
       res.send(result);
     });
 
