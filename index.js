@@ -27,6 +27,7 @@ async function run() {
     const db = client.db("Future_Box_DB");
     const courseCollection = db.collection("Courses");
     const enrollCollection = db.collection("enrolledInfo");
+    // const addCourseCollection = db.collection("addCourseInfo");
 
     app.get("/courses", async (req, res) => {
       const courses = courseCollection.find();
@@ -47,6 +48,56 @@ async function run() {
     app.post("/enrolledUserData", async (req, res) => {
       const data = req.body;
       const result = await enrollCollection.insertOne(data);
+      res.send(result);
+    });
+
+    app.delete("/addedCourses/:id", async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const result = await courseCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.get("/EnrolledData", async (req, res) => {
+      try {
+        const email = req.query.email;
+        console.log(email);
+        if (!email) {
+          return res
+            .status(400)
+            .send({ message: "email query parameter is required" });
+        }
+        const query = { email };
+        console.log(query);
+        const result = enrollCollection.find(query);
+        const data = await result.toArray();
+        res.send(data);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    //added course
+
+    app.post("/addedCourses", async (req, res) => {
+      const data = req.body;
+      const result = await courseCollection.insertOne(data);
+      res.send(result);
+    });
+    //user added course get
+
+    app.get("/addedCourses", async (req, res) => {
+      const email = req.query.email;
+      console.log(email);
+      let query = {};
+      if (!email) {
+        res.status(400).send({ message: "email query parameter is required" });
+      }
+      query = { email };
+      const addedCourseData = courseCollection.find(query);
+      const result = await addedCourseData.toArray();
       res.send(result);
     });
 
