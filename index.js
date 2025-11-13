@@ -30,9 +30,20 @@ async function run() {
     const InstructorsCollection = db.collection("Instructors");
 
     app.get("/courses", async (req, res) => {
-      const courses = courseCollection.find();
-      const result = await courses.toArray();
-      res.send(result);
+      try {
+        const category = req.query.category;
+        let query = {};
+        if (category) {
+          query = { category: { $regex: new RegExp(category, "i") } };
+        }
+
+        const courses = courseCollection.find(query);
+        const result = await courses.toArray();
+        res.send(result);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Failed to fetch data" });
+      }
     });
 
     //CourseDetails
@@ -136,6 +147,24 @@ async function run() {
       const Data = InstructorsCollection.find();
       const result = await Data.toArray();
       res.send(result);
+    });
+    //get Category
+    app.get("/Category", async (req, res) => {
+      try {
+        const result = await courseCollection
+          .aggregate([
+            { $group: { _id: "$category" } },
+            { $project: { _id: 0, category: "$_id" } },
+          ])
+          .toArray();
+
+        const categoryList = result.map((c) => c.category);
+
+        res.send(categoryList);
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Internal server error" });
+      }
     });
 
     // Send a ping to confirm a successful connection
