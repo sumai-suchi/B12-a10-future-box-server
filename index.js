@@ -22,7 +22,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const db = client.db("Future_Box_DB");
     const courseCollection = db.collection("Courses");
@@ -49,7 +49,7 @@ async function run() {
     //CourseDetails
     app.get("/viewDetails/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
+      // console.log(id);
       const query = { _id: new ObjectId(id) };
 
       const result = await courseCollection.findOne(query);
@@ -64,7 +64,7 @@ async function run() {
 
     app.delete("/addedCourses/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
+      // console.log(id);
       const query = { _id: new ObjectId(id) };
       const result = await courseCollection.deleteOne(query);
       res.send(result);
@@ -73,7 +73,7 @@ async function run() {
     app.get("/EnrolledData", async (req, res) => {
       try {
         const email = req.query.email;
-        console.log(email);
+        // console.log(email);
         if (!email) {
           return res
             .status(400)
