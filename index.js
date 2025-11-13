@@ -28,7 +28,6 @@ async function run() {
     const courseCollection = db.collection("Courses");
     const enrollCollection = db.collection("enrolledInfo");
     const InstructorsCollection = db.collection("Instructors");
-    // const addCourseCollection = db.collection("addCourseInfo");
 
     app.get("/courses", async (req, res) => {
       const courses = courseCollection.find();
@@ -84,6 +83,7 @@ async function run() {
 
     app.post("/addedCourses", async (req, res) => {
       const data = req.body;
+      console.log(data);
       const result = await courseCollection.insertOne(data);
       res.send(result);
     });
@@ -94,12 +94,18 @@ async function run() {
       console.log(email);
       let query = {};
       if (!email) {
-        res.status(400).send({ message: "email query parameter is required" });
+        return res
+          .status(400)
+          .send({ message: "email query parameter is required" });
       }
-      query = { email };
-      const addedCourseData = courseCollection.find(query);
-      const result = await addedCourseData.toArray();
-      res.send(result);
+      try {
+        query = { email };
+        const addedCourseData = courseCollection.find(query);
+        const result = await addedCourseData.toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Server error fetching course" });
+      }
     });
 
     //Update course data get
