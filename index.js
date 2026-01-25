@@ -22,12 +22,13 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
 
     const db = client.db("Future_Box_DB");
     const courseCollection = db.collection("Courses");
     const enrollCollection = db.collection("enrolledInfo");
     const InstructorsCollection = db.collection("Instructors");
+    const usersCollection= db.collection("users")
 
     app.get("/courses", async (req, res) => {
       try {
@@ -46,6 +47,40 @@ async function run() {
       }
     });
 
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      console.log(existingUser);
+      if (existingUser) {
+        return res.send({ message: "User already exists" });
+      }
+      user.role="student"
+      console.log(user)
+      user.createdAt = new Date();
+      console.log(user);
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+    app.get("/users/role", async (req, res) => {
+  const email = req.query.email;
+  console.log(email)
+
+  if (!email) {
+    return res.status(400).send({ message: "Email is required" });
+  }
+
+  const user = await usersCollection.findOne({ email });
+  console.log(user)
+
+  // if (!user) {
+  //   return res.status(404).send({ role: null });
+  // }
+
+  res.send(user);
+});
+
+
     //CourseDetails
     app.get("/viewDetails/:id", async (req, res) => {
       const id = req.params.id;
@@ -56,11 +91,38 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/enrolledUserData", async (req, res) => {
-      const data = req.body;
-      const result = await enrollCollection.insertOne(data);
-      res.send(result);
+app.post("/enrolledUserData", async (req, res) => {
+  try {
+    const data = req.body;
+
+    // Remove any _id field from frontend
+    if (data._id) delete data._id;
+
+    if (!data.email || !data.title || !data.category) {
+      return res.status(400).json({ message: "Email, title, and category are required" });
+    }
+
+    // Optional: check if user already enrolled
+    const alreadyEnrolled = await enrollCollection.findOne({
+      email: data.email,
+      title: data.title,
     });
+
+    if (alreadyEnrolled) {
+      return res.status(400).json({ message: "You have already enrolled in this course." });
+    }
+
+    const result = await enrollCollection.insertOne(data);
+
+    res.status(201).json({
+      message: "Enrollment successful",
+      insertedId: result.insertedId,
+    });
+  } catch (error) {
+    console.error("Enroll API error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
     app.delete("/addedCourses/:id", async (req, res) => {
       const id = req.params.id;
@@ -70,25 +132,30 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/EnrolledData", async (req, res) => {
-      try {
-        const email = req.query.email;
-        // console.log(email);
-        if (!email) {
-          return res
-            .status(400)
-            .send({ message: "email query parameter is required" });
-        }
-        const query = { email };
-        console.log(query);
-        const result = enrollCollection.find(query);
-        const data = await result.toArray();
-        res.send(data);
-      } catch (error) {
-        console.log(error);
-        res.status(500).send({ message: "Internal server error" });
-      }
-    });
+  app.get("/EnrolledData", async (req, res) => {
+  try {
+    const email = req.query.email;
+    console.log(email);
+
+    if (!email) {
+      return res
+        .status(400)
+        .send({ message: "email query parameter is required" });
+    }
+
+    const query = { email };
+    console.log(query);
+
+    const result = enrollCollection.find(query);
+    const data = await result.toArray();
+
+    res.send(data);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
+
 
     //added course
 
