@@ -3,12 +3,15 @@ const cors = require("cors");
 const { GoogleGenAI } = require("@google/genai");
 const app = express();
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 3000;
 
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
       "https://future-box-rosy.vercel.app",
     ],
     credentials: true,
@@ -43,6 +46,7 @@ async function run() {
     const enrollCollection = db.collection("enrolledInfo");
     const InstructorsCollection = db.collection("Instructors");
     const usersCollection = db.collection("users");
+    const paymentCollection = db.collection("payments");
    
   
     app.get("/courses", async (req, res) => {
@@ -62,30 +66,36 @@ async function run() {
       }
     });
 
-    app.get("/admin/all-stats", async (req, res)=>
-    {
-        const users = await usersCollection.countDocuments(
-          {
-            role: "student"
-          }
-        );
+    app.get("/admin/all-stats", async (req, res) => {
+      try {
+        const users = await usersCollection.countDocuments({
+          role: "student",
+        });
         const completedCourse = await completedCourseCollection.countDocuments();
         const active = await enrollCollection.countDocuments({
-        status: "active"
+          status: "active",
         });
 
-       const inactive = await enrollCollection.countDocuments({
-        status: "inactive"
-         });
+        const inactive = await enrollCollection.countDocuments({
+          status: "inactive",
+        });
 
-         console.log(users, completedCourse, active, inactive);
+        const payments = await paymentCollection.find().toArray();
+        const totalRevenue = payments.reduce((sum, p) => sum + parseFloat(p.price || 0), 0);
+
+        console.log(users, completedCourse, active, inactive, totalRevenue);
         res.send({
-            users,
-            completedCourse,
-            active,
-            inactive
-        })
-    })
+          users,
+          completedCourse,
+          active,
+          inactive,
+          totalRevenue,
+        });
+      } catch (error) {
+        console.error("all-stats error:", error);
+        res.status(500).send({ message: "Failed to fetch stats" });
+      }
+    });
 
     app.get("/admin/all-enrollments", async (req, res) => {
       try {
@@ -215,6 +225,93 @@ async function run() {
       } catch (error) {
         console.log(error);
         res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.post("/create-payment-intent", async (req, res) => {
+      try {
+        const { price } = req.body;
+        if (!price || isNaN(price) || parseFloat(price) <= 0) {
+          return res.status(400).send({ message: "Invalid price format" });
+        }
+        const amount = Math.round(parseFloat(price) * 100);
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        console.error("Create payment intent error:", error);
+        res.status(500).send({ message: "Failed to create payment intent" });
+      }
+    });
+
+    app.post("/payments", async (req, res) => {
+      try {
+        const payment = req.body;
+        if (!payment.email || !payment.courseId || !payment.price || !payment.transactionId) {
+          return res.status(400).send({ message: "Missing required payment fields" });
+        }
+
+        if (payment._id) delete payment._id;
+
+        // 1. Save payment record
+        const paymentResult = await paymentCollection.insertOne(payment);
+
+        // 2. Enroll student in the course
+        const course = await courseCollection.findOne({ _id: new ObjectId(payment.courseId) });
+        if (!course) {
+          return res.status(404).send({ message: "Course not found" });
+        }
+
+        const enrollmentInfo = {
+          email: payment.email,
+          title: course.title,
+          category: course.category,
+          price: course.price,
+          instructor: course.instructor,
+          image: course.image,
+          duration: course.duration,
+          level: course.level,
+          status: "active",
+          enrolledAt: new Date(),
+          transactionId: payment.transactionId
+        };
+
+        const alreadyEnrolled = await enrollCollection.findOne({
+          email: payment.email,
+          title: course.title,
+        });
+
+        let enrollResult = { insertedId: null };
+        if (!alreadyEnrolled) {
+          enrollResult = await enrollCollection.insertOne(enrollmentInfo);
+        } else {
+          enrollResult = { message: "Already enrolled", insertedId: alreadyEnrolled._id };
+        }
+
+        res.status(201).send({ paymentResult, enrollResult });
+      } catch (error) {
+        console.error("Payments API error:", error);
+        res.status(500).send({ message: "Failed to process payment record and enrollment" });
+      }
+    });
+
+    app.get("/payments", async (req, res) => {
+      try {
+        const email = req.query.email;
+        let query = {};
+        if (email) {
+          query = { email: email };
+        }
+        const result = await paymentCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Fetch payments error:", error);
+        res.status(500).send({ message: "Failed to fetch payments data" });
       }
     });
     //completed course data
